@@ -11,7 +11,7 @@ object Hood: Subsystem{
     @JvmField var MID = 0.0;  // todo: tune
     @JvmField var FAR = 1.0;
 
-    private val servo = ServoEx("gate");
+    private val servo = ServoEx("hood");
 
     val mid = SetPosition(servo,MID)
     val down = SetPosition(servo,DOWN)

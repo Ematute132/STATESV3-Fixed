@@ -11,8 +11,8 @@ import dev.nextftc.core.commands.CommandManager
 import dev.nextftc.core.subsystems.Subsystem
 import dev.nextftc.core.units.Angle
 import dev.nextftc.core.units.rad
+import dev.nextftc.extensions.pedro.PedroComponent
 import dev.nextftc.hardware.impl.MotorEx
-import dev.nextftc.hardware.powerable.SetPower
 import java.util.function.Supplier
 import kotlin.math.*
 
@@ -22,49 +22,40 @@ object Turret : Subsystem {
     // HARDWARE & CONFIGURATION
     // ============================================
 
-    enum class State { IDLE, MANUAL, VISION_AIM, ODOMETRY_AIM }
-    enum class Alliance { RED, BLUE }
+    enum class State { IDLE, MANUAL, VISION_AIM, ODOMETRY_AIM, KALMAN_AIM }
 
-    private val motor = MotorEx("turret")
+    val motor = MotorEx("turret")
 
-    // Encoder calibration points (Code 1 style)
+    // Encoder calibration points
     @JvmField var ENCODERS_FORWARD = 1367.0
     @JvmField var ENCODERS_BACKWARD = 0.0
 
-    // Physical constants (Code 2 style)
+    // Physical constants
     const val GEAR_RATIO = 3.62068965517  // 105/29
     const val MOTOR_TICKS_PER_REV = 537.7
-    private const val RADIANS_PER_TICK = 2.0 * PI / (MOTOR_TICKS_PER_REV * GEAR_RATIO)
+    const val RADIANS_PER_TICK = 2.0 * PI / (MOTOR_TICKS_PER_REV * GEAR_RATIO)
 
     // Physical limits
     const val MIN_ANGLE = -3.0 * PI / 4.0  // -135 degrees
     const val MAX_ANGLE = 3.0 * PI / 4.0   // +135 degrees
 
-    // Field goals (alliance-aware)
-    @JvmField var alliance = Alliance.RED
-    const val GOAL_Y = 144.0
-    const val RED_GOAL_X = 144.0
-    const val BLUE_GOAL_X = 0.0
-    val goalY = GOAL_Y
-    val goalX: Double get() = if (alliance == Alliance.RED) RED_GOAL_X else BLUE_GOAL_X
-
     // ============================================
     // CONTROL SYSTEM
     // ============================================
 
-    private val controller: ControlSystem
+    val controller: ControlSystem
     @JvmField var squidCoefficients = PIDCoefficients(0.002, 0.0, 0.0)
     @JvmField var basicFF = Triple(0.25, 0.0, 0.0)  // kV, kA, kS
 
     // Control parameters
-    @JvmField var minPower: Double = 0.15       // Overcome static friction
-    @JvmField var maxPower: Double = 0.75       // Safety limit
+    @JvmField var minPower: Double = 0.15
+    @JvmField var maxPower: Double = 0.75
     @JvmField var alignmentTolerance: Double = 2.0  // Degrees
-    @JvmField var velocityCompensationGain: Double = 0.25  // Robot rotation compensation
+    @JvmField var velocityCompensationGain: Double = 0.25
 
     init {
         controller = ControlSystem()
-            .posSquID(squidCoefficients)  // Smooth motion for turrets
+            .posSquID(squidCoefficients)
             .build()
         controller.goal = KineticState()
     }
@@ -74,21 +65,19 @@ object Turret : Subsystem {
     // ============================================
 
     var currentState = State.IDLE
-        private set
+        internal set
 
     private var manualPower = 0.0
-    private var lastCommand: Command? = null
+    internal var lastCommand: Command? = null
 
     // Velocity tracking for compensation
     private val velTimer = ElapsedTime()
     private var lastRobotHeading = 0.0
-    private var robotAngularVelocity = 0.0
+    var robotAngularVelocity = 0.0
+        private set
 
-    // Odometry integration (inject these from your drive subsystem)
-    var getCurrentX: () -> Double = { 0.0 }
-    var getCurrentY: () -> Double = { 0.0 }
-    var getCurrentHeading: () -> Double = { 0.0 }
-    var isPoseValid: () -> Boolean = { false }
+
+
 
     // ============================================
     // ANGLE UTILITIES
@@ -96,7 +85,6 @@ object Turret : Subsystem {
 
     /**
      * Normalizes angle to [-PI, PI] and wraps to minimize rotation distance
-     * Combines both implementations' strengths
      */
     fun normalizeAngle(angle: Angle, centerPoint: Double = 0.0): Angle {
         var a = angle.inRad
@@ -151,78 +139,89 @@ object Turret : Subsystem {
     }
 
     // ============================================
-    // CONTROL COMMANDS
+    // CONTROL HELPERS
     // ============================================
 
     /**
-     * Vision-based aiming (Limelight, AprilTag, etc.)
-     * Takes direct dx, dy measurements to target
+     * Sets target angle with optional velocity compensation
      */
-    class VisionAim(
-        private val dx: Supplier<Double>,      // Delta X to goal (continuous)
-        private val dy: Supplier<Double>,      // Delta Y to goal (continuous)
-        private val robotHeading: Supplier<Angle>,  // Current robot heading
-        private val ofsTurret: Angle = 0.0.rad
-    ) : Command() {
+    fun setTargetAngle(targetAngle: Angle, compensateVelocity: Boolean) {
+        val clampedAngle = clampAngle(targetAngle)
 
-        override val isDone = false  // Continuous tracking
+        val encoderTarget = (clampedAngle.inRad / PI) *
+                (ENCODERS_FORWARD - ENCODERS_BACKWARD) + ENCODERS_FORWARD
 
-        override fun start() {
-            currentState = State.VISION_AIM
-            if (lastCommand != null && lastCommand != this) {
-                CommandManager.cancelCommand(lastCommand!!)
-            }
-            lastCommand = this
+        val targetVelocity = if (compensateVelocity) {
+            -robotAngularVelocity * velocityCompensationGain
+        } else {
+            0.0
         }
 
-        override fun update() {
-            val targetAngle = normalizeAngle(
-                atan2(dy.get(), dx.get()).rad - robotHeading.get() + ofsTurret
-            )
-            setTargetAngle(targetAngle, compensateVelocity = true)
-        }
+        controller.goal = KineticState(encoderTarget, targetVelocity)
+    }
 
-        override fun stop(interrupted: Boolean) {
-            if (!interrupted) currentState = State.IDLE
+    /**
+     * Updates robot angular velocity for compensation
+     */
+    private fun updateRobotVelocity() {
+        val dt = velTimer.seconds()
+        if (dt > 0.001) {
+            val currentHeading = PedroComponent.follower.pose.heading
+            var deltaHeading = currentHeading - lastRobotHeading
+
+            if (deltaHeading > PI) deltaHeading -= 2 * PI
+            if (deltaHeading < -PI) deltaHeading += 2 * PI
+
+            robotAngularVelocity = deltaHeading / dt
+            lastRobotHeading = currentHeading
+            velTimer.reset()
         }
     }
 
     /**
-     * Odometry-based aiming - aims at field goal using pose estimation
+     * Applies minimum power threshold to overcome friction
      */
-    class OdometryAim(
-        private val ofsTurret: Angle = 0.0.rad
+    private fun applyMinimumPower(power: Double, error: Double): Double {
+        val errorDeg = Math.toDegrees(abs(error))
+
+        return if (errorDeg > alignmentTolerance) {
+            power + (if (power >= 0) 1.0 else -1.0) * minPower
+        } else {
+            if (abs(controller.goal.velocity) < 0.01) 0.0 else power
+        }
+    }
+
+    /**
+     * Cancels current command and registers new one
+     */
+    fun registerCommand(command: Command) {
+        if (lastCommand != null && lastCommand != command) {
+            CommandManager.cancelCommand(lastCommand!!)
+        }
+        lastCommand = command
+    }
+
+    // ============================================
+    // MANUAL CONTROL
+    // ============================================
+
+    class Manual(
+        private val powerSupplier: Supplier<Double>
     ) : Command() {
 
-        override val isDone = false  // Continuous tracking
+        override val isDone = false
 
         override fun start() {
-            currentState = State.ODOMETRY_AIM
-            if (lastCommand != null && lastCommand != this) {
-                CommandManager.cancelCommand(lastCommand!!)
-            }
-            lastCommand = this
+            currentState = State.MANUAL
+            registerCommand(this)
         }
 
         override fun update() {
-            if (!isPoseValid()) return
-
-            val deltaX = goalX - getCurrentX()
-            val deltaY = goalY - getCurrentY()
-            val fieldAngle = atan2(deltaY, deltaX)
-
-            val robotHeading = getCurrentHeading().let { heading ->
-                if (abs(heading) > 2.0 * PI) Math.toRadians(heading) else heading
-            }
-
-            val targetAngle = normalizeAngle(
-                (fieldAngle - robotHeading).rad + ofsTurret
-            )
-
-            setTargetAngle(targetAngle, compensateVelocity = true)
+            manualPower = powerSupplier.get()
         }
 
         override fun stop(interrupted: Boolean) {
+            manualPower = 0.0
             if (!interrupted) currentState = State.IDLE
         }
     }
@@ -253,33 +252,6 @@ object Turret : Subsystem {
     }
 
     /**
-     * Manual control for tuning/testing
-     */
-    class Manual(
-        private val powerSupplier: Supplier<Double>
-    ) : Command() {
-
-        override val isDone = false
-
-        override fun start() {
-            currentState = State.MANUAL
-            if (lastCommand != null && lastCommand != this) {
-                CommandManager.cancelCommand(lastCommand!!)
-            }
-            lastCommand = this
-        }
-
-        override fun update() {
-            manualPower = powerSupplier.get()
-        }
-
-        override fun stop(interrupted: Boolean) {
-            manualPower = 0.0
-            if (!interrupted) currentState = State.IDLE
-        }
-    }
-
-    /**
      * Stop all motion
      */
     fun stop() {
@@ -288,65 +260,6 @@ object Turret : Subsystem {
         }
         currentState = State.IDLE
         motor.power = 0.0
-    }
-
-    // ============================================
-    // INTERNAL CONTROL
-    // ============================================
-
-    /**
-     * Sets target angle with optional velocity compensation
-     */
-    private fun setTargetAngle(targetAngle: Angle, compensateVelocity: Boolean) {
-        // Clamp to physical limits
-        val clampedAngle = clampAngle(targetAngle)
-
-        // Convert to encoder position
-        val encoderTarget = (clampedAngle.inRad / PI) *
-                (ENCODERS_FORWARD - ENCODERS_BACKWARD) + ENCODERS_FORWARD
-
-        // Set goal with velocity compensation
-        val targetVelocity = if (compensateVelocity) {
-            -robotAngularVelocity * velocityCompensationGain
-        } else {
-            0.0
-        }
-
-        controller.goal = KineticState(encoderTarget, targetVelocity)
-    }
-
-    /**
-     * Updates robot angular velocity for compensation
-     */
-    private fun updateRobotVelocity() {
-        val dt = velTimer.seconds()
-        if (dt > 0.001) {
-            val currentHeading = getCurrentHeading()
-            var deltaHeading = currentHeading - lastRobotHeading
-
-            // Normalize delta
-            if (deltaHeading > PI) deltaHeading -= 2 * PI
-            if (deltaHeading < -PI) deltaHeading += 2 * PI
-
-            robotAngularVelocity = deltaHeading / dt
-            lastRobotHeading = currentHeading
-            velTimer.reset()
-        }
-    }
-
-    /**
-     * Applies minimum power threshold to overcome friction
-     */
-    private fun applyMinimumPower(power: Double, error: Double): Double {
-        val errorDeg = Math.toDegrees(abs(error))
-
-        return if (errorDeg > alignmentTolerance) {
-            // Add minimum power to overcome static friction
-            power + (if (power >= 0) 1.0 else -1.0) * minPower
-        } else {
-            // Within tolerance - stop if not tracking velocity
-            if (abs(controller.goal.velocity) < 0.01) 0.0 else power
-        }
     }
 
     // ============================================
@@ -372,31 +285,23 @@ object Turret : Subsystem {
                 motor.power = manualPower.coerceIn(-maxPower, maxPower)
             }
 
-            State.VISION_AIM, State.ODOMETRY_AIM -> {
-                // Calculate control output from SQUID controller
+            State.VISION_AIM, State.ODOMETRY_AIM, State.KALMAN_AIM -> {
                 var power = controller.calculate(motor.state)
-
-                // Add basic feedforward
                 power += basicFF.first * controller.goal.velocity
 
-                // Apply minimum power threshold
                 val error = controller.goal.position - motor.currentPosition
                 power = applyMinimumPower(power, error)
 
-                // Clamp and apply
                 motor.power = power.coerceIn(-maxPower, maxPower)
             }
         }
 
         // Telemetry
         PanelsTelemetry.telemetry.addData("Turret State", currentState.name)
-        PanelsTelemetry.telemetry.addData("Turret Yaw (rad)", turretYaw.inRad)
         PanelsTelemetry.telemetry.addData("Turret Yaw (deg)", Math.toDegrees(turretYaw.inRad))
         PanelsTelemetry.telemetry.addData("Motor Encoder", motor.currentPosition)
         PanelsTelemetry.telemetry.addData("Controller Goal", controller.goal.position)
-        PanelsTelemetry.telemetry.addData("Controller Ref", controller.reference)
         PanelsTelemetry.telemetry.addData("Motor Power", motor.power)
         PanelsTelemetry.telemetry.addData("Robot AngVel (rad/s)", robotAngularVelocity)
-        PanelsTelemetry.telemetry.addData("Alliance", alliance.name)
     }
 }

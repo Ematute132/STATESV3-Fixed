@@ -29,11 +29,11 @@ object ShooterSubsystem : Subsystem {
     @JvmField var pidCoefficients = PIDCoefficients(0.016, 0.0, 0.0)
     @JvmField var shootingCoefficients = PIDCoefficients(1.0, 0.0, 0.0)
 
-    private val controller: ControlSystem;
+    private val flyWheelController: ControlSystem;
     private val shootingController: ControlSystem;
 
     init {
-        controller = controlSystem {
+        flyWheelController = controlSystem {
             basicFF(ffCoefficients)
             velPid(pidCoefficients)
         }
@@ -51,7 +51,7 @@ object ShooterSubsystem : Subsystem {
     }
 
     fun setControllerGoals(velocity: Double) {
-        controller.goal = KineticState(velocity=velocity);
+        flyWheelController.goal = KineticState(velocity=velocity);
         shootingController.goal = KineticState(velocity=velocity);
     }
 
@@ -65,18 +65,15 @@ object ShooterSubsystem : Subsystem {
 
     var off = On(0.0);
 
+    // use this to find distance on field with right velo after pid tuning
     class Manual(
         private val shooterPower: Supplier<Double>
-    ) : Command() {
-        override val isDone = false;
-
-        override fun update() {
+    ) : Command() { override val isDone = false; override fun update() {
             setMotorPowers(shooterPower.get())
-        }
-    }
+        } }
 
     class AutoAim(
-        private val dxy: Double,
+        private val dxy: Double, // figure out what this is
         private val powerByDistance: (Double) -> Double,  // get by running curve of best fit on collected data
     ) : Command() {
         override val isDone = true;
@@ -94,7 +91,7 @@ object ShooterSubsystem : Subsystem {
     var lastPos = 0.0;
     var elapsedTime: ElapsedTime = ElapsedTime();
     override fun periodic() {
-        val power = (if (isShooting) shootingController else controller).calculate(
+        val power = (if (isShooting) shootingController else flyWheelController).calculate(
             motor2.state.times(-1.0)
         ).coerceIn(0.0, 1.0);
 
@@ -107,13 +104,13 @@ object ShooterSubsystem : Subsystem {
         telemetry.addData("power", power)
 
         telemetry.addData("vel measured", measuredVel)
-        telemetry.addData("vel est", controller.lastMeasurement.velocity)
-        telemetry.addData("vel ref", controller.reference.velocity)
-        telemetry.addData("vel goal", controller.goal.velocity)
+        telemetry.addData("vel est", flyWheelController.lastMeasurement.velocity)
+        telemetry.addData("vel ref", flyWheelController.reference.velocity)
+        telemetry.addData("vel goal", flyWheelController.goal.velocity)
 
-//        telemetry.addData("pos measured 1", motor1.currentPosition)
+        telemetry.addData("pos measured 1", motor1.currentPosition)
         telemetry.addData("pos measured 2", motor2.currentPosition)
-        telemetry.addData("pos est", -controller.lastMeasurement.position)
-        telemetry.addData("pos ref", controller.reference.position)
+        telemetry.addData("pos est", -flyWheelController.lastMeasurement.position)
+        telemetry.addData("pos ref", flyWheelController.reference.position)
     }
 }

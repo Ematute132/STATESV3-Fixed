@@ -10,7 +10,7 @@ import dev.nextftc.hardware.impl.MotorEx
 @Configurable
 @TeleOp(name = "Shooter 1 Test", group = "Base Subsystem Tests")
 class Shooter1Test : NextFTCOpMode() {
-    private val motor1 = MotorEx("shooter1").reversed();
+    private val motor1 = MotorEx("Fly1").reversed();
 
     companion object {
         @JvmField var power = 0.0;
