@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.opmodes.testing.baseSubsystems
+package org.firstinspires.ftc.teamcode.nextFtc.testing
 
 import com.bylazar.configurables.annotations.Configurable
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
@@ -8,7 +8,7 @@ import dev.nextftc.core.components.SubsystemComponent
 import dev.nextftc.ftc.Gamepads
 import dev.nextftc.ftc.NextFTCOpMode
 import dev.nextftc.ftc.components.BulkReadComponent
-import org.firstinspires.ftc.teamcode.Subsystem.Intake
+import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Intake
 
 
 @Configurable

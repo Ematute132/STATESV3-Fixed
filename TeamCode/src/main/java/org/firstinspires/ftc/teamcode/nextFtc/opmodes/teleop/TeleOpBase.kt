@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.opmodes.teleop
+package org.firstinspires.ftc.teamcode.nextFtc.opmodes.teleop
 
 import com.bylazar.configurables.annotations.Configurable
 import com.bylazar.telemetry.PanelsTelemetry
@@ -17,10 +17,10 @@ import dev.nextftc.ftc.NextFTCOpMode
 import dev.nextftc.ftc.components.BulkReadComponent
 import org.firstinspires.ftc.teamcode.Data.Lefile
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.LL.LLBase
-import org.firstinspires.ftc.teamcode.Subsystem.Gate
-import org.firstinspires.ftc.teamcode.Subsystem.Intake
-import org.firstinspires.ftc.teamcode.Subsystem.Shooter.Turret
-import org.firstinspires.ftc.teamcode.Subsystem.Shooter.TripleFusionAim
+import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Gate
+import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Intake
+import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Turret
+import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.TurretMech.TripleFusionAim
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 
 import java.io.File
@@ -59,7 +59,8 @@ open class TeleOpBase(
             SubsystemComponent(
                 Turret,
                 LLBase,
-                // add other subsystems
+                Gate,
+                Intake
             ),
             PedroComponent(Constants::createFollower),
             BulkReadComponent,
@@ -77,12 +78,13 @@ open class TeleOpBase(
 
         // Load saved pose from file
         val file = File(Lefile.filePath)
-        val content = file.readText().split("\n")
-        val startX = content[0].toDouble()
-        val startY = content[1].toDouble()
-        val startH = content[2].toDouble()
-
-        PedroComponent.follower.pose = Pose(startX, startY, startH)
+        if (file.exists()) {
+            val content = file.readText().split("\n")
+            val startX = content[0].toDoubleOrNull() ?: 0.0
+            val startY = content[1].toDoubleOrNull() ?: 0.0
+            val startH = content[2].toDoubleOrNull() ?: 0.0
+            PedroComponent.follower.pose = Pose(startX, startY, startH)
+        }
     }
 
     private var autoAimEnabled = true
@@ -129,7 +131,7 @@ open class TeleOpBase(
                 goalY = goalY,
                 poseX = { PedroComponent.follower.pose.x },
                 poseY = { PedroComponent.follower.pose.y },
-                poseHeading = { PedroComponent.follower.pose.heading }  // Pedro returns radians
+                poseHeading = { PedroComponent.follower.pose.heading }
             )
             aimCommand!!()
 

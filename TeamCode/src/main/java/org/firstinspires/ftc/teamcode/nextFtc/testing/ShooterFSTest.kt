@@ -1,8 +1,10 @@
-package org.firstinspires.ftc.teamcode.opmodes.testing.baseSubsystems
+package org.firstinspires.ftc.teamcode.nextFtc.testing
 
 import com.bylazar.configurables.annotations.Configurable
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import dev.nextftc.ftc.NextFTCOpMode
+import dev.nextftc.ftc.components.BulkReadComponent
+import dev.nextftc.core.components.BindingsComponent
 import dev.nextftc.hardware.impl.MotorEx
 
 @Configurable
@@ -16,20 +18,15 @@ class ShooterFSTest : NextFTCOpMode() {
         @JvmField var power2 = 0.0;
     }
 
-//
-//    init {
-//        addComponents(
-//            SubsystemComponent(ShooterSubsystem),
-//            BulkReadComponent,
-//            BindingsComponent
-//        )
-//    }
+    init {
+        addComponents(
+            BulkReadComponent,
+            BindingsComponent
+        )
+    }
 
     override fun onUpdate() {
         motor1.power = power1;
         motor2.power = power2;
     }
-
-
-
 }

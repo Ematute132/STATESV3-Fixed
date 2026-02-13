@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.opmodes.testing.baseSubsystems
+package org.firstinspires.ftc.teamcode.nextFtc.testing
 
 import com.bylazar.configurables.annotations.Configurable
 import com.bylazar.telemetry.PanelsTelemetry
@@ -8,10 +8,10 @@ import dev.nextftc.core.components.BindingsComponent
 import dev.nextftc.core.components.SubsystemComponent
 import dev.nextftc.ftc.NextFTCOpMode
 import dev.nextftc.ftc.components.BulkReadComponent
-import org.firstinspires.ftc.teamcode.subsystems.outtake.ShooterSubsystem
+import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.FlyWheel
 
 @Configurable
-@TeleOp(name = "Shooter1 F Test", group = "Base Subsystem Tests")
+@TeleOp(name = "Shooter F Test", group = "Base Subsystem Tests")
 class ShooterFTest : NextFTCOpMode() {
     companion object {
         @JvmField var speed = 0.0;
@@ -19,16 +19,15 @@ class ShooterFTest : NextFTCOpMode() {
 
     init {
         addComponents(
-            SubsystemComponent(ShooterSubsystem),
+            SubsystemComponent(FlyWheel),
             BulkReadComponent,
             BindingsComponent
         )
     }
 
     override fun onUpdate() {
-//        telemetry.addData("test", "hi");
         CommandManager.cancelAll()
-        ShooterSubsystem.On(speed)();
+        FlyWheel.setVelocity(speed * 2000)  // Convert 0-1 to velocity
         PanelsTelemetry.telemetry.update();
     }
 }
