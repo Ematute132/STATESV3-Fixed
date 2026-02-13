@@ -38,6 +38,22 @@ object Intake : Subsystem {
     var isRunning: Boolean = false
         private set
     
+    // ============================================
+    // COMMANDS
+    // ============================================
+    
+    /**
+     * Simple command to turn intake on at configured power
+     */
+    class On : Command() {
+        override val isDone = true
+        
+        override fun start() {
+            motor.power = 1.0
+            isRunning = true
+        }
+    }
+    
     /**
      * One-shot intake command - runs for specified duration then stops
      */
@@ -47,6 +63,30 @@ object Intake : Subsystem {
         override fun start() {
             motor.power = 1.0
             isRunning = true
+        }
+    }
+    
+    /**
+     * Turn intake on with specific power level
+     */
+    class PowerOn(private val power: Double) : Command() {
+        override val isDone = true
+        
+        override fun start() {
+            motor.power = power.coerceIn(-1.0, 1.0)
+            isRunning = kotlin.math.abs(power) > 0.1
+        }
+    }
+    
+    /**
+     * Turn intake on and run for specified time at given power
+     */
+    class TimedPowerIntake(private val power: Double, private val durationMs: Long) : Command() {
+        override val isDone = true
+        
+        override fun start() {
+            motor.power = power.coerceIn(-1.0, 1.0)
+            isRunning = kotlin.math.abs(power) > 0.1
         }
     }
     
@@ -83,20 +123,20 @@ object Intake : Subsystem {
     }
     
     /**
-     * Get current motor current for game piece detection
-     * TODO: CHECK CORRECT NEXTFTC API FOR MOTOR CURRENT
-     * Options: motor.currentDraw, motor.currentAlert, or remove this
+     * Get current motor current draw in amps
+     * TODO: VERIFY THIS API - Check NextFTC MotorEx documentation
+     * Common alternatives: motor.current, motor.currentDrawAmps
      */
-    // val current: Double get() = motor.current
+    val currentAmps: Double
+        get() = motor.motor.current / 1000.0  // Convert mA to A if needed
     
     /**
-     * Check if intake has a game piece
-     * TODO: IMPLEMENT THIS WITH CORRECT MOTOR CURRENT API
-     * Can use: motor.currentDraw, optical sensor, or time-based
+     * Check if intake has a game piece based on current draw
+     * Higher current = motor is working harder = has game piece
+     * TODO: TUNE THRESHOLD for your specific intake
      */
-    fun hasGamePiece(): Boolean {
-        // TODO: Replace with actual detection method
-        return false
+    fun hasGamePiece(thresholdAmps: Double = 2.0): Boolean {
+        return currentAmps > thresholdAmps
     }
     
     override fun periodic() {
