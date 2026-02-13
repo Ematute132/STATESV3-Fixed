@@ -10,7 +10,6 @@ import dev.nextftc.core.units.deg
 import dev.nextftc.ftc.Gamepads
 import dev.nextftc.ftc.NextFTCOpMode
 import dev.nextftc.ftc.components.BulkReadComponent
-import dev.nextftc.extensions.pedro.PedroComponent
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.LL.LLBase
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Turret
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.TurretMech.LimelightAimMT2

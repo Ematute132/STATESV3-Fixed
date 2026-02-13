@@ -6,9 +6,6 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import dev.nextftc.core.commands.CommandManager
 import dev.nextftc.core.components.BindingsComponent
 import dev.nextftc.core.components.SubsystemComponent
-import dev.nextftc.core.units.Angle
-import dev.nextftc.core.units.deg
-import dev.nextftc.core.units.rad
 import dev.nextftc.ftc.Gamepads
 import dev.nextftc.ftc.NextFTCOpMode
 import dev.nextftc.ftc.components.BulkReadComponent
@@ -42,7 +39,7 @@ class TurretOdoTest : NextFTCOpMode() {
     )
     private var currentTargetIndex = 0
 
-    private var aimCommand: OdometryAim? = null
+    private var currentAimCommand: OdometryAim? = null
     private var isAiming = false
 
     init {
@@ -62,43 +59,42 @@ class TurretOdoTest : NextFTCOpMode() {
         // Cycle targets with D-Pad
         Gamepads.gamepad2.dpadUp whenBecomesTrue {
             currentTargetIndex = (currentTargetIndex + 1) % targets.size
+            updateAimCommand()
         }
 
         // Toggle odometry aiming
         Gamepads.gamepad2.circle whenBecomesTrue {
             if (isAiming) {
                 Turret.stop()
-                aimCommand = null
+                currentAimCommand = null
                 isAiming = false
             } else {
-                val target = targets[currentTargetIndex]
-                aimCommand = OdometryAim(
-                    goalX = target.first,
-                    goalY = target.second,
-                    x = { 0.0 },  // Will be updated in onUpdate
-                    y = { 0.0 },  // Will be updated in onUpdate
-                    h = { 0.0 }   // Will be updated in onUpdate
-                )
-                aimCommand!!()
+                updateAimCommand()
+                currentAimCommand!!()
                 isAiming = true
             }
         }
     }
 
+    private fun updateAimCommand() {
+        val target = targets[currentTargetIndex]
+        val pose = PedroComponent.follower.pose
+        currentAimCommand = OdometryAim(
+            goalX = target.first,
+            goalY = target.second,
+            x = pose.x,
+            y = pose.y,
+            h = pose.heading
+        )
+    }
+
     override fun onUpdate() {
         CommandManager.cancelAll()
 
-        // Update aim command with current pose if aiming
-        if (isAiming && aimCommand != null) {
-            val target = targets[currentTargetIndex]
-            aimCommand = OdometryAim(
-                goalX = target.first,
-                goalY = target.second,
-                x = { PedroComponent.follower.pose.x },
-                y = { PedroComponent.follower.pose.y },
-                h = { PedroComponent.follower.pose.heading }
-            )
-            aimCommand!!()
+        // Update aim command continuously if aiming
+        if (isAiming) {
+            updateAimCommand()
+            currentAimCommand!!()
         }
 
         // Telemetry
