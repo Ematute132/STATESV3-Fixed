@@ -16,11 +16,30 @@ import dev.nextftc.hardware.positionable.SetPosition
  */
 object Hood : Subsystem {
 
-    // TODO: TUNE THESE VALUES for your specific mechanism!
-    @JvmField var DOWN = 0.0   // Close range
+    // ============================================
+    // HOOD POSITIONS - TUNE THESE ON FIELD!
+    // ============================================
+    // HOW TO TUNE:
+    // 1. Set all to 0.5 (midpoint)
+    // 2. Test at close range (~12 inches), adjust DOWN until shots go in
+    // 3. Test at far range (~48 inches), adjust FAR until shots go in
+    // 4. Test at mid range, adjust MID if needed
+    // 5. Fine-tune based on trajectory
+    // ============================================
+    
+    @JvmField var DOWN = 0.0   // TODO: TUNE - Close range (12-18 inches)
     @JvmField var CLOSE = 0.0  // Alias for DOWN
-    @JvmField var MID = 0.5     // Medium range - TUNE THIS!
-    @JvmField var FAR = 1.0     // Long range - TUNE THIS!
+    @JvmField var MID = 0.5     // TODO: TUNE - Medium range (24-36 inches)
+    @JvmField var FAR = 1.0     // TODO: TUNE - Long range (48+ inches)
+
+    // ============================================
+    // DISTANCE THRESHOLDS - ADJUST FOR YOUR FIELD!
+    // ============================================
+    // Change these based on where your robot typically positions
+    // ============================================
+    
+    private val CLOSE_THRESHOLD = 20.0  // TODO: TUNE - Max distance for close hood
+    private val MID_THRESHOLD = 40.0    // TODO: TUNE - Max distance for mid hood
 
     private val servo = ServoEx("hood")
 
@@ -35,8 +54,8 @@ object Hood : Subsystem {
      */
     fun setForDistance(distanceInches: Double): Double {
         val position = when {
-            distanceInches < 20.0 -> DOWN
-            distanceInches < 40.0 -> MID
+            distanceInches < CLOSE_THRESHOLD -> DOWN
+            distanceInches < MID_THRESHOLD -> MID
             else -> FAR
         }
         servo.position = position

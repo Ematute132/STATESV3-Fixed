@@ -33,9 +33,41 @@ object FlyWheel : Subsystem {
     private val motor1 = MotorEx("Fly1")
     private val motor2 = MotorEx("Fly2").reversed()
     
-    // Control coefficients - TUNE THESE for your robot!
-    @JvmField var ffCoefficients = BasicFeedforwardParameters(0.003, 0.08, 0.0)  // kV, kA, kS
-    @JvmField var pidCoefficients = PIDCoefficients(0.009, 0.0, 0.01)  // kP, kI, kD
+    // Control coefficients - TUNE THESE FOR YOUR ROBOT!
+    // ============================================
+    // HOW TO TUNE:
+    // 1. Set all to 0
+    // 2. Increase kV until motor reaches target velocity smoothly
+    // 3. Add small kP to correct steady-state error
+    // 4. Add kD to reduce overshoot
+    // 5. kA usually not needed for flywheel
+    // ============================================
+    
+    @JvmField var ffCoefficients = BasicFeedforwardParameters(
+        kV = 0.003,  // TODO: TUNE - Start at 0.001, increase until reaches target velocity
+        kA = 0.08,   // TODO: TUNE - For acceleration compensation (usually small)
+        kS = 0.0     // TODO: TUNE - For friction (if motor drifts at low power)
+    )
+    
+    @JvmField var pidCoefficients = PIDCoefficients(
+        kP = 0.009,  // TODO: TUNE - Start at 0.005, increase for faster response
+        kI = 0.0,    // Usually not needed for flywheel
+        kD = 0.01    // TODO: TUNE - Helps reduce overshoot
+    )
+    
+    // ============================================
+    // VELOCITY PRESETS - TUNE THESE ON FIELD!
+    // ============================================
+    // Test at different distances and record velocity for each:
+    // - Close: ~12-18 inches
+    // - Mid: ~24-36 inches  
+    // - Far: ~48+ inches
+    // ============================================
+    
+    fun runClose() = setVelocity(1000.0)   // TODO: TUNE - Record actual velocity for close range
+    fun runMid() = setVelocity(1250.0)    // TODO: TUNE - Record actual velocity for mid range
+    fun runFar() = setVelocity(1500.0)    // TODO: TUNE - Record actual velocity for far range
+    fun runMax() = setVelocity(2000.0)    // TODO: TUNE - Maximum safe velocity
     
     // Control system
     val controller: ControlSystem = controlSystem {

@@ -12,11 +12,21 @@ import dev.nextftc.hardware.positionable.SetPosition
  * Position values (TUNE THESE for your robot!):
  * - OPEN = 0.0 (or whatever lets pieces through)
  * - CLOSE = 1.0 (or whatever blocks pieces)
+ * 
+ * HOW TO TUNE:
+ * 1. Set OPEN = 0.5, CLOSE = 0.5
+ * 2. Manually move gate to OPEN position, record value
+ * 3. Manually move gate to CLOSE position, record value
+ * 4. Update OPEN and CLOSE with measured values
  */
 object Gate : Subsystem {
-    // TODO: TUNE THESE VALUES for your specific mechanism!
-    @JvmField var OPEN = 0.0
-    @JvmField var CLOSE = 1.0
+    
+    // ============================================
+    // GATE POSITIONS - TUNE THESE!
+    // ============================================
+    
+    @JvmField var OPEN = 0.0   // TODO: MEASURE - Position when gate is open (pieces fall through)
+    @JvmField var CLOSE = 1.0  // TODO: MEASURE - Position when gate is closed (blocks pieces)
 
     private val servo = ServoEx("gate")
 

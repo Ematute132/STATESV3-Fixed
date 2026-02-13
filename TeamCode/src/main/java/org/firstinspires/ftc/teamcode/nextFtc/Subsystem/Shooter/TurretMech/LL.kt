@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Turret
+package org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.TurretMech
 
 import dev.nextftc.core.commands.Command
 import dev.nextftc.core.units.Angle

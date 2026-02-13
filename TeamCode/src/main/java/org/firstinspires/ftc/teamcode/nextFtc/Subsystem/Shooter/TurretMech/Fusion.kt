@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Turret
+package org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.TurretMech
 
 import com.bylazar.telemetry.PanelsTelemetry
 import dev.nextftc.core.commands.Command
@@ -51,21 +51,34 @@ class TripleFusionAim(
     private var kfAngle = 0.0
     private var kfP = 1.0
 
-    // Noise parameters - tune these!
-    companion object {
-        // Process noise (odometry model) - LOW because odo is most accurate
-        @JvmField var processNoiseQ = 0.005
+    // ============================================
+    // KALMAN FILTER NOISE - TUNE THESE!
+    // ============================================
+    // HOW TO TUNE:
+    // 1. Watch telemetry during operation
+    // 2. If KF jumps around too much -> increase noise (R values)
+    // 3. If KF is too slow to respond -> decrease noise (R values)
+    // 4. Process noise (Q) affects how much we trust odometry between updates
+    // ============================================
+    
+    // Process noise (odometry model) - LOW because odo is most accurate
+    @JvmField var processNoiseQ = 0.005  // TODO: TUNE - Increase if KF lags behind odo
+    
+    // Measurement noise - HIGHER because vision is less trusted
+    // Vision is used for drift correction, not primary tracking
+    @JvmField var mt2NoiseR = 0.15    // TODO: TUNE - MT2 trust level (0.05 = high trust, 0.5 = low trust)
+    @JvmField var mt1NoiseR = 0.25    // TODO: TUNE - MT1 trust level (usually higher than MT2)
 
-        // Measurement noise - HIGHER because vision is less trusted
-        // Vision is used for drift correction, not primary tracking
-        @JvmField var mt2NoiseR = 0.15    // MT2 - decent but not as good as odo
-        @JvmField var mt1NoiseR = 0.25    // MT1 - least accurate
-
-        // Adaptive scaling
-        @JvmField var rotationNoiseScale = 1.5   // Scale Q when robot rotating fast
-        @JvmField var dropoutNoiseScale = 1.5    // Scale R after vision dropout
-        @JvmField var dropoutThreshold = 10      // Frames before increasing noise
-    }
+    // ============================================
+    // ADAPTIVE NOISE SCALING - OPTIONAL!
+    // ============================================
+    // These adjust noise dynamically based on conditions
+    // Start with 1.0 (no scaling) and tune if needed
+    // ============================================
+    
+    @JvmField var rotationNoiseScale = 1.5   // TODO: TUNE - Scale Q when robot rotating fast
+    @JvmField var dropoutNoiseScale = 1.5     // TODO: TUNE - Scale R after vision dropout
+    @JvmField var dropoutThreshold = 10      // Frames before increasing noise
 
     // Tracking
     private var visionDropoutCounter = 0

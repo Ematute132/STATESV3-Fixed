@@ -26,32 +26,106 @@ object Turret : Subsystem {
 
     val motor = MotorEx("turret")
 
-    // Encoder calibration points
-    @JvmField var ENCODERS_FORWARD = 1367.0
-    @JvmField var ENCODERS_BACKWARD = 0.0
+    // ============================================
+    // ENCODER CALIBRATION - MEASURE THESE ON ROBOT!
+    // ============================================
+    // HOW TO CALIBRATE:
+    // 1. Manually rotate turret to FORWARD position (pointing at driver)
+    // 2. Record encoder value -> ENCODERS_FORWARD
+    // 3. Manually rotate turret to BACKWARD position (opposite driver)
+    // 4. Record encoder value -> ENCODERS_BACKWARD
+    // ============================================
+    
+    @JvmField var ENCODERS_FORWARD = 1367.0   // TODO: MEASURE - Encoder value when turret faces forward
+    @JvmField var ENCODERS_BACKWARD = 0.0     // TODO: MEASURE - Encoder value when turret faces backward
 
-    // Physical constants
-    const val GEAR_RATIO = 3.62068965517  // 105/29
-    const val MOTOR_TICKS_PER_REV = 537.7
+    // ============================================
+    // PHYSICAL CONSTANTS - MEASURE YOUR ROBOT!
+    // ============================================
+    // HOW TO MEASURE:
+    // 1. Count gear teeth on motor and driven gear
+    // 2. Divide driven/motor = gear ratio
+    // ============================================
+    
+    const val GEAR_RATIO = 3.62068965517  // TODO: VERIFY - 105/29 = Your actual gear ratio
+    
+    // ============================================
+    // MOTOR SPECS - VERIFY FROM MANUFACTURER
+    // ============================================
+    // Neverest Orbital 60: 537.6 ticks/rev (actually ~537.7)
+    // ============================================
+    
+    const val MOTOR_TICKS_PER_REV = 537.7   // TODO: VERIFY - Check your motor specs
     const val RADIANS_PER_TICK = 2.0 * PI / (MOTOR_TICKS_PER_REV * GEAR_RATIO)
 
-    // Physical limits
-    const val MIN_ANGLE = -3.0 * PI / 4.0  // -135 degrees
-    const val MAX_ANGLE = 3.0 * PI / 4.0   // +135 degrees
+    // ============================================
+    // PHYSICAL LIMITS - MEASURE YOUR MECHANISM!
+    // ============================================
+    // HOW TO MEASURE:
+    // 1. Manually rotate turret to extreme left
+    // 2. Measure angle or use encoder value
+    // 3. Repeat for extreme right
+    // ============================================
+    
+    const val MIN_ANGLE = -3.0 * PI / 4.0  // TODO: MEASURE - Left limit in radians
+    const val MAX_ANGLE = 3.0 * PI / 4.0   // TODO: MEASURE - Right limit in radians
 
     // ============================================
     // CONTROL SYSTEM
     // ============================================
 
-    val controller: ControlSystem
-    @JvmField var squidCoefficients = PIDCoefficients(0.002, 0.0, 0.0)
-    @JvmField var basicFF = Triple(0.25, 0.0, 0.0)  // kV, kA, kS
+    // ============================================
+    // PID CONTROLLER - TUNE THESE!
+    // ============================================
+    // HOW TO TUNE:
+    // 1. Set all to 0
+    // 2. Increase kP until turret moves to target quickly without oscillating
+    // 3. Add small kD to reduce overshoot
+    // 4. kI usually not needed for position control
+    // ============================================
+    
+    @JvmField var squidCoefficients = PIDCoefficients(
+        kP = 0.002,  // TODO: TUNE - Start at 0.001, increase for faster response
+        kI = 0.0,    // Usually not needed
+        kD = 0.0     // TODO: TUNE - Add if oscillating
+    )
+    
+    // ============================================
+    // FEEDFORWARD - TUNE THESE!
+    // ============================================
+    // kV: Compensates for velocity-dependent friction
+    // kA: Compensates for acceleration
+    // kS: Static friction (breakaway)
+    // ============================================
+    
+    @JvmField var feedForward = Triple(0.25, 0.0, 0.0)  
+    // TODO: TUNE feedForward.first (kV) - Start at 0.1, increase if turret undershoots at speed
+    // TODO: TUNE feedForward.second (kA) - Usually 0 for position control
+    // TODO: TUNE feedForward.third (kS) - Static friction compensation
 
-    // Control parameters
-    @JvmField var minPower: Double = 0.15
-    @JvmField var maxPower: Double = 0.75
-    @JvmField var alignmentTolerance: Double = 2.0  // Degrees
-    @JvmField var velocityCompensationGain: Double = 0.25
+    // ============================================
+    // POWER LIMITS - SET FOR YOUR MOTOR!
+    // ============================================
+    
+    @JvmField var minPower: Double = 0.15      // TODO: TUNE - Minimum power to overcome friction
+    @JvmField var maxPower: Double = 0.75       // TODO: SET - Maximum safe power (account for stalling)
+    
+    // ============================================
+    // ALIGNMENT TOLERANCE - SET FOR YOUR NEEDS!
+    // ============================================
+    // Smaller = more precise, but may never "arrive"
+    // Larger = faster alignment, less precise
+    // ============================================
+    
+    @JvmField var alignmentTolerance: Double = 2.0  // TODO: TUNE - Degrees, when to consider "aligned"
+    
+    // ============================================
+    // VELOCITY COMPENSATION - EXPERIMENT!
+    // ============================================
+    // Higher = more aggressive compensation for robot rotation
+    // ============================================
+    
+    @JvmField var velocityCompensationGain: Double = 0.25  // TODO: TUNE - 0.0 to 1.0
 
     init {
         controller = ControlSystem()

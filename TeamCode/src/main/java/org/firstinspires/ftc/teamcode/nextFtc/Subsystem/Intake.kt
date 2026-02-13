@@ -21,9 +21,17 @@ import java.util.function.Supplier
 object Intake : Subsystem {
     private val motor = MotorEx("intake").reversed()
 
-    // Simple power commands
-    val intake = SetPower(motor, 1.0)
-    val reverse = SetPower(motor, -0.5)
+    // ============================================
+    // INTAKE POWER - TUNE THESE!
+    // ============================================
+    // HOW TO TUNE:
+    // 1. Set intake power to 1.0, test pickup speed
+    // 2. Increase if too slow, decrease if pieces get stuck
+    // 3. Reverse power should be enough to eject but not damage
+    // ============================================
+    
+    val intake = SetPower(motor, 1.0)     // TODO: TUNE - Forward power (0.5 to 1.0)
+    val reverse = SetPower(motor, -0.5)   // TODO: TUNE - Eject power (-0.3 to -0.8)
     val off = SetPower(motor, 0.0)
     
     // State tracking
@@ -75,15 +83,21 @@ object Intake : Subsystem {
     }
     
     /**
-     * Get current motor current (useful for detecting game piece)
+     * Get current motor current for game piece detection
+     * TODO: CHECK CORRECT NEXTFTC API FOR MOTOR CURRENT
+     * Options: motor.currentDraw, motor.currentAlert, or remove this
      */
-    val current: Double get() = motor.current
+    // val current: Double get() = motor.current
     
     /**
-     * Check if intake has a game piece based on current draw
-     * TUNE THIS THRESHOLD for your specific mechanism!
+     * Check if intake has a game piece
+     * TODO: IMPLEMENT THIS WITH CORRECT MOTOR CURRENT API
+     * Can use: motor.currentDraw, optical sensor, or time-based
      */
-    fun hasGamePiece(threshold: Double = 2.0): Boolean = current > threshold
+    fun hasGamePiece(): Boolean {
+        // TODO: Replace with actual detection method
+        return false
+    }
     
     override fun periodic() {
         // Update state
