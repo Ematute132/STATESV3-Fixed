@@ -16,7 +16,7 @@ import dev.nextftc.ftc.Gamepads
 import dev.nextftc.ftc.NextFTCOpMode
 import dev.nextftc.ftc.components.BulkReadComponent
 import org.firstinspires.ftc.teamcode.Data.Lefile
-import org.firstinspires.ftc.teamcode.ILT.Next.Subsystem.Vision.LLBase
+import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.LL.LLBase
 import org.firstinspires.ftc.teamcode.Subsystem.Gate
 import org.firstinspires.ftc.teamcode.Subsystem.Intake
 import org.firstinspires.ftc.teamcode.Subsystem.Shooter.Turret

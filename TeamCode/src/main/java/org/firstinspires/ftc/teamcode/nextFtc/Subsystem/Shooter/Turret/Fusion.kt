@@ -1,10 +1,10 @@
-package org.firstinspires.ftc.teamcode.Subsystem.Shooter
+package org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Turret
 
 import com.bylazar.telemetry.PanelsTelemetry
 import dev.nextftc.core.commands.Command
 import dev.nextftc.core.units.Angle
 import dev.nextftc.core.units.rad
-import org.firstinspires.ftc.teamcode.ILT.Next.Subsystem.Vision.LLBase
+import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.LL.LLBase
 import java.util.function.Supplier
 import kotlin.math.PI
 import kotlin.math.abs

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.Subsystem.Shooter
+package org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter
 
 import com.bylazar.telemetry.PanelsTelemetry
 import com.qualcomm.robotcore.hardware.DcMotor

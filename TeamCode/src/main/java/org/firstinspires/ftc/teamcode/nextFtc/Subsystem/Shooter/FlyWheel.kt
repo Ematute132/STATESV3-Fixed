@@ -1,116 +1,120 @@
-package org.firstinspires.ftc.teamcode.subsystems.outtake
+package org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter
 
 import com.bylazar.configurables.annotations.Configurable
 import com.bylazar.telemetry.PanelsTelemetry.telemetry
-import com.qualcomm.robotcore.util.ElapsedTime
 import dev.nextftc.control.ControlSystem
 import dev.nextftc.control.KineticState
 import dev.nextftc.control.builder.controlSystem
-import dev.nextftc.control.feedback.FeedbackType
 import dev.nextftc.control.feedback.PIDCoefficients
 import dev.nextftc.control.feedforward.BasicFeedforwardParameters
 import dev.nextftc.core.commands.Command
-import dev.nextftc.core.commands.groups.ParallelGroup
+import dev.nextftc.core.commands.utility.InstantCommand
 import dev.nextftc.core.subsystems.Subsystem
-import dev.nextftc.core.units.Angle
-import dev.nextftc.hardware.controllable.RunToState
 import dev.nextftc.hardware.controllable.RunToVelocity
 import dev.nextftc.hardware.impl.MotorEx
-import dev.nextftc.hardware.powerable.SetPower
 import java.util.function.Supplier
+import kotlin.math.abs
 
-
+/**
+ * Flywheel shooter subsystem with PID + Feedforward control.
+ * 
+ * Hardware: 2 MotorEx motors (Fly1, Fly2) in push-pull configuration
+ * 
+ * Features:
+ * - Velocity-based control using KineticState
+ * - PID feedback for accuracy
+ * - Feedforward for smooth acceleration
+ * - Preset velocities for different distances
+ */
 @Configurable
-object ShooterSubsystem : Subsystem {
-    private val motor1 = MotorEx("Fly1");
-    private val motor2 = MotorEx("Fly2").reversed();
-
-    @JvmField var ffCoefficients = BasicFeedforwardParameters(0.0, 0.0, 0.75);
-    @JvmField var pidCoefficients = PIDCoefficients(0.016, 0.0, 0.0)
-    @JvmField var shootingCoefficients = PIDCoefficients(1.0, 0.0, 0.0)
-
-    private val flyWheelController: ControlSystem;
-    private val shootingController: ControlSystem;
-
-    init {
-        flyWheelController = controlSystem {
-            basicFF(ffCoefficients)
-            velPid(pidCoefficients)
-        }
-
-        // todo: tune shooting controller
-        shootingController = controlSystem {
-            basicFF(ffCoefficients)
-            velPid(shootingCoefficients)
-        }
+object FlyWheel : Subsystem {
+    
+    // Hardware definition
+    private val motor1 = MotorEx("Fly1")
+    private val motor2 = MotorEx("Fly2").reversed()
+    
+    // Control coefficients - TUNE THESE for your robot!
+    @JvmField var ffCoefficients = BasicFeedforwardParameters(0.003, 0.08, 0.0)  // kV, kA, kS
+    @JvmField var pidCoefficients = PIDCoefficients(0.009, 0.0, 0.01)  // kP, kI, kD
+    
+    // Control system
+    val controller: ControlSystem = controlSystem {
+        basicFF(ffCoefficients)
+        velPid(pidCoefficients)
     }
-
-    fun setMotorPowers(power: Double) {
-        motor1.power = power;
-        motor2.power = power;
+    
+    // Current state
+    var isRunning: Boolean = false
+        private set
+    var targetVelocity: Double = 0.0
+        private set
+    
+    /**
+     * Set target velocity (RPM)
+     * @param velocity Target velocity in RPM
+     */
+    fun setVelocity(velocity: Double) {
+        targetVelocity = velocity
+        // KineticState(position, velocity) - position 0 for pure velocity control
+        controller.goal = KineticState(0.0, velocity)
+        isRunning = velocity > 50.0
     }
-
-    fun setControllerGoals(velocity: Double) {
-        flyWheelController.goal = KineticState(velocity=velocity);
-        shootingController.goal = KineticState(velocity=velocity);
-    }
-
-    class On(private val velocity: Double): Command() {
-        override val isDone = true;
-
-        override fun start() {
-            setControllerGoals(velocity)
-        }
-    }
-
-    var off = On(0.0);
-
-    // use this to find distance on field with right velo after pid tuning
-    class Manual(
-        private val shooterPower: Supplier<Double>
-    ) : Command() { override val isDone = false; override fun update() {
-            setMotorPowers(shooterPower.get())
-        } }
-
-    class AutoAim(
-        private val dxy: Double, // figure out what this is
-        private val powerByDistance: (Double) -> Double,  // get by running curve of best fit on collected data
-    ) : Command() {
-        override val isDone = true;
-
-        init {
-            requires(ShooterSubsystem)
-        }
-
-        override fun start() {
-            setControllerGoals(powerByDistance(dxy))
+    
+    // Preset velocities - TUNE THESE for your robot!
+    fun runClose() = setVelocity(1000.0)   // For close range
+    fun runMid() = setVelocity(1250.0)    // For medium range  
+    fun runFar() = setVelocity(1500.0)    // For long range
+    fun runMax() = setVelocity(2000.0)    // Maximum
+    
+    /**
+     * Manual power control (for testing/troubleshooting)
+     */
+    class Manual(private val power: Supplier<Double>) : Command() {
+        override val isDone = false
+        init { requires(this@FlyWheel) }
+        
+        override fun update() {
+            motor1.power = power.get()
+            motor2.power = power.get()
         }
     }
-
-    var isShooting = false;
-    var lastPos = 0.0;
-    var elapsedTime: ElapsedTime = ElapsedTime();
+    
+    /**
+     * Stop the flywheel
+     */
+    val off = InstantCommand {
+        setVelocity(0.0)
+        motor1.power = 0.0
+        motor2.power = 0.0
+        isRunning = false
+    }
+    
+    /**
+     * Check if both motors are synchronized (within tolerance)
+     */
+    fun isSynced(tolerance: Double = 100.0): Boolean {
+        return abs(motor1.velocity - motor2.velocity) < tolerance
+    }
+    
+    /**
+     * Get average velocity of both motors
+     */
+    val averageVelocity: Double get() = (motor1.velocity + motor2.velocity) / 2.0
+    
     override fun periodic() {
-        val power = (if (isShooting) shootingController else flyWheelController).calculate(
-            motor2.state.times(-1.0)
-        ).coerceIn(0.0, 1.0);
-
-        setMotorPowers(power);
-
-        val measuredVel = (motor2.currentPosition - lastPos)/elapsedTime.time();
-        lastPos = motor2.currentPosition;
-        elapsedTime.reset()
-
-        telemetry.addData("power", power)
-
-        telemetry.addData("vel measured", measuredVel)
-        telemetry.addData("vel est", flyWheelController.lastMeasurement.velocity)
-        telemetry.addData("vel ref", flyWheelController.reference.velocity)
-        telemetry.addData("vel goal", flyWheelController.goal.velocity)
-
-        telemetry.addData("pos measured 1", motor1.currentPosition)
-        telemetry.addData("pos measured 2", motor2.currentPosition)
-        telemetry.addData("pos est", -flyWheelController.lastMeasurement.position)
-        telemetry.addData("pos ref", flyWheelController.reference.position)
+        // Calculate control effort
+        val controlEffort = controller.calculate(motor1.state)
+        
+        // Apply to motors (clamp for safety)
+        val clampedPower = controlEffort.coerceIn(-0.85, 0.85)
+        motor1.power = clampedPower
+        motor2.power = clampedPower
+        
+        // Telemetry for debugging
+        telemetry.addData("Flywheel Power", clampedPower)
+        telemetry.addData("Target Vel", targetVelocity)
+        telemetry.addData("Actual Vel", motor1.velocity)
+        telemetry.addData("Motor 2 Vel", motor2.velocity)
+        telemetry.addData("Synced", isSynced())
     }
 }
