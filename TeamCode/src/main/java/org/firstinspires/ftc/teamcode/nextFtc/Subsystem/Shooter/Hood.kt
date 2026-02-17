@@ -1,11 +1,14 @@
 package org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter
 
+import com.bylazar.telemetry.PanelsTelemetry
 import dev.nextftc.core.subsystems.Subsystem
 import dev.nextftc.hardware.impl.ServoEx
 import dev.nextftc.hardware.positionable.SetPosition
+import kotlin.math.hypot
 
 /**
  * Hood subsystem for adjusting shooter angle based on distance.
+ * NOW auto-updates in periodic() based on robot position!
  * 
  * Hardware: ServoEx connected to hood/angle adjustment mechanism
  * 
@@ -43,10 +46,36 @@ object Hood : Subsystem {
 
     private val servo = ServoEx("hood")
 
+    // Current target position for telemetry
+    var currentTargetPosition: Double = MID
+        private set
+
+    // Robot position suppliers - set these from TeleOp
+    var robotX: () -> Double = { 0.0 }
+    var robotY: () -> Double = { 0.0 }
+    var goalX: Double = 55.0  // Default goal position
+    var goalY: Double = 0.0
+
     val mid = SetPosition(servo, MID)
     val down = SetPosition(servo, DOWN)
     val closePos = SetPosition(servo, CLOSE)  // 'close' conflicts with Gate.close
     val far = SetPosition(servo, FAR)
+    
+    /**
+     * Set goal position for distance calculation
+     */
+    fun setGoalPosition(gx: Double, gy: Double) {
+        goalX = gx
+        goalY = gy
+    }
+
+    /**
+     * Set position providers from TeleOp
+     */
+    fun setPositionProviders(x: () -> Double, y: () -> Double) {
+        robotX = x
+        robotY = y
+    }
     
     /**
      * Set hood position based on distance to target
@@ -59,6 +88,7 @@ object Hood : Subsystem {
             else -> FAR
         }
         servo.position = position
+        currentTargetPosition = position
         return position
     }
     
@@ -66,8 +96,24 @@ object Hood : Subsystem {
      * Get current hood position
      */
     val currentPosition: Double get() = servo.position
+
+    /**
+     * Get distance to goal
+     */
+    private fun getDistanceToGoal(): Double {
+        val dx = goalX - robotX()
+        val dy = goalY - robotY()
+        return hypot(dx, dy)
+    }
     
     override fun periodic() {
-        // Add any continuous updates needed
+        // Auto-update hood position based on distance to goal!
+        val distance = getDistanceToGoal()
+        setForDistance(distance)
+
+        // Debug telemetry
+        PanelsTelemetry.telemetry.addData("Hood Distance", distance)
+        PanelsTelemetry.telemetry.addData("Hood Position", currentPosition)
+        PanelsTelemetry.telemetry.addData("Hood Target", currentTargetPosition)
     }
 }

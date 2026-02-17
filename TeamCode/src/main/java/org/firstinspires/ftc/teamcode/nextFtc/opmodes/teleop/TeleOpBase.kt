@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.Data.Lefile
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.LL.LLBase
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Gate
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Intake
+import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Hood
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Turret
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.TurretMech.TripleFusionAim
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants
@@ -60,7 +61,8 @@ open class TeleOpBase(
                 Turret,
                 LLBase,
                 Gate,
-                Intake
+                Intake,
+                Hood
             ),
             PedroComponent(Constants::createFollower),
             BulkReadComponent,
@@ -69,6 +71,11 @@ open class TeleOpBase(
     }
 
     override fun onInit() {
+        // Set up hood position providers
+        Hood.setPositionProviders({ x }, { y })
+        Hood.setGoalPosition(goalX, goalY)
+
+        // Initialize Pedro Driver Controlled
         driverControlled = PedroDriverControlled(
             Gamepads.gamepad1.leftStickY.map { if (isBlue) it else -it },
             Gamepads.gamepad1.leftStickX.map { if (isBlue) it else -it },
@@ -79,11 +86,15 @@ open class TeleOpBase(
         // Load saved pose from file
         val file = File(Lefile.filePath)
         if (file.exists()) {
-            val content = file.readText().split("\n")
-            val startX = content[0].toDoubleOrNull() ?: 0.0
-            val startY = content[1].toDoubleOrNull() ?: 0.0
-            val startH = content[2].toDoubleOrNull() ?: 0.0
-            PedroComponent.follower.pose = Pose(startX, startY, startH)
+            try {
+                val content = file.readText().split("\n")
+                val startX = content.getOrNull(0)?.toDoubleOrNull() ?: 0.0
+                val startY = content.getOrNull(1)?.toDoubleOrNull() ?: 0.0
+                val startH = content.getOrNull(2)?.toDoubleOrNull() ?: 0.0
+                PedroComponent.follower.pose = Pose(startX, startY, startH)
+            } catch (e: Exception) {
+                // If file parse fails, start at default position
+            }
         }
     }
 
@@ -96,17 +107,33 @@ open class TeleOpBase(
         gamepad1.setLedColor(0.0, 0.0, 255.0, -1)
         gamepad2.setLedColor(255.0, 0.0, 0.0, -1)
 
-        // Start driver control
-        driverControlled!!()
+        // Start Pedro driver control
+        driverControlled?.let {
+            it()
+        }
 
-        // Intake control
-        val intakeMotorDrive = Intake.DriverCommand(
-            Gamepads.gamepad1.rightTrigger,
-            Gamepads.gamepad1.leftTrigger
-        )
-        intakeMotorDrive()
+        // ============================================
+        // INTAKE CONTROL - Simple direct control
+        // ============================================
+        
+        // Right trigger = intake, Left trigger = reverse
+        Gamepads.gamepad1.rightTrigger.onChange { triggerValue ->
+            if (triggerValue > 0.1) {
+                Intake.setPower(triggerValue)
+            } else if (Gamepads.gamepad1.leftTrigger.get() < 0.1) {
+                Intake.stop()
+            }
+        }
+        
+        Gamepads.gamepad1.leftTrigger.onChange { triggerValue ->
+            if (triggerValue > 0.1) {
+                Intake.setPower(-triggerValue)
+            } else if (Gamepads.gamepad1.rightTrigger.get() < 0.1) {
+                Intake.stop()
+            }
+        }
 
-        // Shooting (gate + intake)
+        // Shooting (gate + intake) on right bumper
         Gamepads.gamepad1.rightBumper whenBecomesTrue {
             ParallelGroup(
                 Gate.open,
@@ -115,7 +142,7 @@ open class TeleOpBase(
         } whenBecomesFalse {
             ParallelGroup(
                 Gate.close,
-                Intake.off
+                Intake.stop
             )()
         }
 
@@ -133,7 +160,7 @@ open class TeleOpBase(
                 poseY = { PedroComponent.follower.pose.y },
                 poseHeading = { PedroComponent.follower.pose.heading }
             )
-            aimCommand!!()
+            aimCommand?.let { it() }
 
             gamepad2.rumble(100)
         } whenBecomesFalse {
@@ -184,9 +211,10 @@ open class TeleOpBase(
     var lastRuntime = 0.0
 
     override fun onUpdate() {
-        telemetry.addData("Loop Time (ms)", runtime - lastRuntime)
+        val loopTime = runtime - lastRuntime
         lastRuntime = runtime
 
+        // Update Pedro path follower
         PedroComponent.follower.update()
 
         // Distance calculations (for flywheel speed, theta, etc.)
@@ -197,26 +225,40 @@ open class TeleOpBase(
         val dyp = dy + vy * distanceToTime(dxy)
         val dxyp = hypot(dxp, dyp)
 
-        // Telemetry
-        telemetry.addData("x (inch)", x)
-        telemetry.addData("y (inch)", y)
-        telemetry.addData("h (radians)", h.inRad)
-        telemetry.addData("distanceToGoal", dxy)
+        // Standard telemetry
+        telemetry.addData("Loop Time (ms)", loopTime)
+        telemetry.addData("x (inch)", "%.1f".format(x))
+        telemetry.addData("y (inch)", "%.1f".format(y))
+        telemetry.addData("h (deg)", "%.1f".format(Math.toDegrees(h.inRad)))
+        telemetry.addData("distanceToGoal", "%.1f".format(dxy))
         telemetry.addData("Auto Aim", aimCommand != null)
         telemetry.addData("Reset Mode", resetMode)
+        
+        // Intake telemetry
+        telemetry.addData("Intake Power", "%.2f".format(Intake.power))
+        
         telemetry.update()
 
+        // Panels telemetry for debugging
+        PanelsTelemetry.telemetry.addData("Loop Time", "%.1fms".format(loopTime))
+        PanelsTelemetry.telemetry.addData("Pose", "(%.1f, %.1f, %.1f)".format(x, y, Math.toDegrees(h.inRad)))
+        PanelsTelemetry.telemetry.addData("Distance", "%.1f".format(dxy))
         PanelsTelemetry.telemetry.addData("CMD", CommandManager.snapshot)
         PanelsTelemetry.telemetry.update()
     }
 
     override fun onStop() {
         // Save pose to file for next run
-        val file = File(Lefile.filePath)
-        file.writeText(
-            x.toString() + "\n" +
-                    y.toString() + "\n" +
-                    h.inRad.toString() + "\n"
-        )
+        try {
+            val file = File(Lefile.filePath)
+            file.writeText(
+                "%.6f\n%.6f\n%.6f".format(x, y, h.inRad)
+            )
+        } catch (e: Exception) {
+            // Ignore file write errors
+        }
+        
+        // Stop intake
+        Intake.stop()
     }
 }
