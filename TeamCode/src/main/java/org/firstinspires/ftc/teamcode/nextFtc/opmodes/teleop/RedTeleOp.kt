@@ -7,23 +7,20 @@ import dev.nextftc.core.units.rad
 
 /**
  * Red Alliance TeleOp
- * Uses Red side field coordinates and goal position
  */
 @Configurable
 @TeleOp(name = "Red TeleOp", group = "TeleOp")
 class RedTeleOp : TeleOpBase(
     isBlue = false,
-    goalX = 72.0,       // Red alliance goal X position
-    goalY = 0.0,       // Red alliance goal Y position
+    goalX = 144.0,       // Red side goal
+    goalY = 144.0,
     resetModeParams = ResetModeParams(
-        x = 72.0,       // Starting X for red
-        y = -72.0,      // Starting Y for red
-        h = 0.0.deg     // Starting heading
+        x = 72.0,
+        y = -72.0,
+        h = 0.0.deg
     ),
     resetModePhiAngle = 0.0.deg,
     distanceToVelocity = { distance ->
-        // Convert distance to flywheel velocity
-        // TODO: TUNE THIS FUNCTION
         when {
             distance < 20.0 -> 1000.0
             distance < 40.0 -> 1250.0
@@ -32,8 +29,6 @@ class RedTeleOp : TeleOpBase(
         }
     },
     distanceToTheta = { distance ->
-        // Convert distance to hood/flywheel angle
-        // TODO: TUNE THIS FUNCTION
         when {
             distance < 20.0 -> 0.3.rad
             distance < 40.0 -> 0.5.rad
@@ -42,8 +37,6 @@ class RedTeleOp : TeleOpBase(
         }
     },
     distanceToTime = { distance ->
-        // Time offset for moving target compensation
-        // TODO: TUNE THIS VALUE
         distance * 0.05
     }
 )

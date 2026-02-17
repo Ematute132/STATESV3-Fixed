@@ -21,7 +21,6 @@ import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Gate
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Intake
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Hood
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Turret
-import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.TurretMech.TripleFusionAim
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 
 import java.io.File
@@ -38,7 +37,7 @@ open class TeleOpBase(
     private val resetModeParams: ResetModeParams,
     private val resetModePhiAngle: Angle,
     private val distanceToVelocity: (Double) -> Double,
-    private val distanceToTheta: (Double) -> Angle,
+    private val distanceToTheta: (Angle) -> Angle,
     private val distanceToTime: (Double) -> Double
 ): NextFTCOpMode() {
 
@@ -51,9 +50,6 @@ open class TeleOpBase(
     val vh: Angle  get() = PedroComponent.follower.velocity.theta.rad
 
     var driverControlled: PedroDriverControlled? = null
-
-    // Turret aiming command (stored so we can cancel it)
-    private var aimCommand: TripleFusionAim? = null
 
     init {
         addComponents(
@@ -74,6 +70,9 @@ open class TeleOpBase(
         // Set up hood position providers
         Hood.setPositionProviders({ x }, { y })
         Hood.setGoalPosition(goalX, goalY)
+        
+        // Set turret goal position
+        Turret.setGoalPosition(goalX, goalY)
 
         // Initialize Pedro Driver Controlled
         driverControlled = PedroDriverControlled(
@@ -147,33 +146,20 @@ open class TeleOpBase(
         }
 
         // ============================================
-        // TURRET AUTO-AIM (Triple Fusion)
+        // TURRET CONTROL - Odometry based (like BURNED)
         // ============================================
 
-        // Hold circle to enable auto-aim with Kalman fusion
+        // Hold circle to enable odometry aim
         Gamepads.gamepad2.circle whenBecomesTrue {
-            // Create and start the fusion aim command
-            aimCommand = TripleFusionAim(
-                goalX = goalX,
-                goalY = goalY,
-                poseX = { PedroComponent.follower.pose.x },
-                poseY = { PedroComponent.follower.pose.y },
-                poseHeading = { PedroComponent.follower.pose.heading }
-            )
-            aimCommand?.let { it() }
-
+            Turret.aimWithOdometry()
             gamepad2.rumble(100)
         } whenBecomesFalse {
-            // Stop aiming when released
             Turret.stop()
-            aimCommand = null
         }
 
-        // Manual turret control (when not auto-aiming)
+        // Manual turret control with square
         Gamepads.gamepad2.square whenBecomesTrue {
-            Turret.Manual {
-                Gamepads.gamepad2.rightStickX.get() * 0.5
-            }()
+            Turret.Manual(Gamepads.gamepad2.rightStickX.get() * 0.5)
         } whenBecomesFalse {
             Turret.stop()
         }
@@ -217,7 +203,7 @@ open class TeleOpBase(
         // Update Pedro path follower
         PedroComponent.follower.update()
 
-        // Distance calculations (for flywheel speed, theta, etc.)
+        // Distance calculations
         val dx = goalX - x
         val dy = goalY - y
         val dxy = hypot(dx, dy)
@@ -231,7 +217,6 @@ open class TeleOpBase(
         telemetry.addData("y (inch)", "%.1f".format(y))
         telemetry.addData("h (deg)", "%.1f".format(Math.toDegrees(h.inRad)))
         telemetry.addData("distanceToGoal", "%.1f".format(dxy))
-        telemetry.addData("Auto Aim", aimCommand != null)
         telemetry.addData("Reset Mode", resetMode)
         
         // Intake telemetry
@@ -239,7 +224,7 @@ open class TeleOpBase(
         
         telemetry.update()
 
-        // Panels telemetry for debugging
+        // Panels telemetry
         PanelsTelemetry.telemetry.addData("Loop Time", "%.1fms".format(loopTime))
         PanelsTelemetry.telemetry.addData("Pose", "(%.1f, %.1f, %.1f)".format(x, y, Math.toDegrees(h.inRad)))
         PanelsTelemetry.telemetry.addData("Distance", "%.1f".format(dxy))
@@ -248,17 +233,18 @@ open class TeleOpBase(
     }
 
     override fun onStop() {
-        // Save pose to file for next run
+        // Save pose to file
         try {
             val file = File(Lefile.filePath)
             file.writeText(
                 "%.6f\n%.6f\n%.6f".format(x, y, h.inRad)
             )
         } catch (e: Exception) {
-            // Ignore file write errors
+            // Ignore
         }
         
-        // Stop intake
+        // Stop all subsystems
         Intake.stop()
+        Turret.stop()
     }
 }
