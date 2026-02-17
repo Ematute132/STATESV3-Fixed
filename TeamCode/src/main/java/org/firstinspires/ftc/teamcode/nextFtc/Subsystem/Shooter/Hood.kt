@@ -1,10 +1,10 @@
 package org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter
 
 import com.bylazar.telemetry.PanelsTelemetry
+import dev.nextftc.core.commands.Command
 import dev.nextftc.core.subsystems.Subsystem
 import dev.nextftc.hardware.impl.ServoEx
 import dev.nextftc.hardware.positionable.SetPosition
-import kotlin.math.hypot
 
 /**
  * Hood subsystem for adjusting shooter angle based on distance.
@@ -38,13 +38,12 @@ object Hood : Subsystem {
     // ============================================
     // DISTANCE THRESHOLDS - ADJUST FOR YOUR FIELD!
     // ============================================
-    // Change these based on where your robot typically positions
-    // ============================================
     
-    private val CLOSE_THRESHOLD = 20.0  // TODO: TUNE - Max distance for close hood
-    private val MID_THRESHOLD = 40.0    // TODO: TUNE - Max distance for mid hood
+    private val CLOSE_THRESHOLD = 20.0  // TODO: TUNE
+    private val MID_THRESHOLD = 40.0    // TODO: TUNE
 
-    private val servo = ServoEx("hood")
+    // Use ServoEx with scale parameter - check your robot's direction!
+    private val servo = ServoEx("hood", ServoEx.MAX_POSITION.toDouble())
 
     // Current target position for telemetry
     var currentTargetPosition: Double = MID
@@ -56,11 +55,12 @@ object Hood : Subsystem {
     var goalX: Double = 55.0  // Default goal position
     var goalY: Double = 0.0
 
-    val mid = SetPosition(servo, MID)
-    val down = SetPosition(servo, DOWN)
-    val closePos = SetPosition(servo, CLOSE)  // 'close' conflicts with Gate.close
-    val far = SetPosition(servo, FAR)
-    
+    // Commands for common positions
+    val full = SetPosition(servo, FAR)
+    val close = SetPosition(servo, CLOSE)
+    val half = SetPosition(servo, MID)
+    val open = SetPosition(servo, DOWN)
+
     /**
      * Set goal position for distance calculation
      */
@@ -78,8 +78,16 @@ object Hood : Subsystem {
     }
     
     /**
+     * Set hood position directly
+     */
+    fun setPosition(newPosition: Double) {
+        currentTargetPosition = newPosition.coerceIn(0.0, 1.0)
+        servo.position = currentTargetPosition
+    }
+    
+    /**
      * Set hood position based on distance to target
-     * Returns the position used (useful for telemetry/debugging)
+     * Returns the position used
      */
     fun setForDistance(distanceInches: Double): Double {
         val position = when {
@@ -87,8 +95,7 @@ object Hood : Subsystem {
             distanceInches < MID_THRESHOLD -> MID
             else -> FAR
         }
-        servo.position = position
-        currentTargetPosition = position
+        setPosition(position)
         return position
     }
     
@@ -103,7 +110,7 @@ object Hood : Subsystem {
     private fun getDistanceToGoal(): Double {
         val dx = goalX - robotX()
         val dy = goalY - robotY()
-        return hypot(dx, dy)
+        return kotlin.math.hypot(dx, dy)
     }
     
     override fun periodic() {
@@ -112,8 +119,8 @@ object Hood : Subsystem {
         setForDistance(distance)
 
         // Debug telemetry
-        PanelsTelemetry.telemetry.addData("Hood Distance", distance)
-        PanelsTelemetry.telemetry.addData("Hood Position", currentPosition)
-        PanelsTelemetry.telemetry.addData("Hood Target", currentTargetPosition)
+        PanelsTelemetry.telemetry.addData("Hood Distance", "%.1f".format(distance))
+        PanelsTelemetry.telemetry.addData("Hood Position", "%.3f".format(currentPosition))
+        PanelsTelemetry.telemetry.addData("Hood Target", "%.3f".format(currentTargetPosition))
     }
 }
