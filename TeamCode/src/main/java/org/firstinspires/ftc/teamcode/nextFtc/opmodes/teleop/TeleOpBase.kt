@@ -176,7 +176,7 @@ open class TeleOpBase(
 
         // Hold triangle for odometry-only aim (backup)
         Gamepads.gamepad2.triangle whenBecomesTrue {
-            Turret.aimWithOdometry()
+            Turret.aimWithOdometryState()
             gamepad2.rumble(50)
         } whenBecomesFalse {
             Turret.stop()

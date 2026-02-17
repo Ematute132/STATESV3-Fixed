@@ -17,6 +17,8 @@ import kotlin.math.*
 /**
  * Turret subsystem - adapted from working BURNED code
  * Supports: IDLE, MANUAL, ODOMETRY, KALMAN_AIM states
+ * 
+ * IMPORTANT: If using external odometry (not Pedro), set HEADING_IN_DEGREES = true
  */
 object Turret : Subsystem {
 
@@ -24,6 +26,13 @@ object Turret : Subsystem {
 
     var motor = MotorEx("turret")
 
+    // ============================================
+    // CONFIG - SET THIS BASED ON YOUR ODOMETRY
+    // ============================================
+    // If using PedroPathing for pose -> false (returns radians)
+    // If using custom Drive with heading in degrees -> true
+    const val HEADING_IN_DEGREES = false
+    
     // Control system - using BURNED's working PID values
     var controller = controlSystem {
         posPid(0.3, 0.0, 0.05)  // kP, kI, kD - these work!
@@ -90,12 +99,26 @@ object Turret : Subsystem {
         PanelsTelemetry.telemetry.addData("Turret Yaw (deg)", "%.1f".format(Math.toDegrees(turretYaw)))
         PanelsTelemetry.telemetry.addData("Turret Target", "%.1f".format(Math.toDegrees(targetAngle.inRad)))
         PanelsTelemetry.telemetry.addData("Motor Power", "%.2f".format(motor.power))
+        PanelsTelemetry.telemetry.addData("Heading (deg)", "%.1f".format(Math.toDegrees(lastRobotHeading)))
+        PanelsTelemetry.telemetry.addData("AngVel (rad/s)", "%.2f".format(robotAngularVelocity))
+    }
+
+    /**
+     * Get heading in radians - handles degree/radian conversion
+     */
+    private fun getHeadingRadians(): Double {
+        val heading = PedroComponent.follower.pose.heading.inRad
+        return if (HEADING_IN_DEGREES) {
+            Math.toRadians(heading)
+        } else {
+            heading
+        }
     }
 
     private fun updateRobotVelocity() {
         val dt = velTimer.seconds()
         if (dt > 0.001) {
-            val currentHeading = PedroComponent.follower.pose.heading.inRad
+            val currentHeading = getHeadingRadians()
             val deltaHeading = normalizeAngle(currentHeading - lastRobotHeading)
             robotAngularVelocity = deltaHeading / dt
             lastRobotHeading = currentHeading
@@ -135,7 +158,7 @@ object Turret : Subsystem {
         val pose = PedroComponent.follower.pose
         val currentX = pose.x
         val currentY = pose.y
-        val currentHeading = pose.heading.inRad
+        val currentHeading = getHeadingRadians()
 
         val deltaX = goalX - currentX
         val deltaY = goalY - currentY
@@ -178,7 +201,7 @@ object Turret : Subsystem {
         goalY = y
     }
 
-    fun aimWithOdometry() { currentState = State.ODOMETRY }
+    fun aimWithOdometryState() { currentState = State.ODOMETRY }
     
     fun aimWithKalman() { currentState = State.KALMAN_AIM }
     
