@@ -21,6 +21,7 @@ import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Gate
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Intake
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Hood
 import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.Turret
+import org.firstinspires.ftc.teamcode.nextFtc.Subsystem.Shooter.TurretMech.TripleFusionAim
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 
 import java.io.File
@@ -50,6 +51,9 @@ open class TeleOpBase(
     val vh: Angle  get() = PedroComponent.follower.velocity.theta.rad
 
     var driverControlled: PedroDriverControlled? = null
+    
+    // Current aim command (for cancellation)
+    private var aimCommand: TripleFusionAim? = null
 
     init {
         addComponents(
@@ -146,13 +150,34 @@ open class TeleOpBase(
         }
 
         // ============================================
-        // TURRET CONTROL - Odometry based (like BURNED)
+        // TURRET CONTROL - Kalman Fusion with MT1/MT2
         // ============================================
 
-        // Hold circle to enable odometry aim
+        // Hold circle to enable Kalman fusion aiming
         Gamepads.gamepad2.circle whenBecomesTrue {
-            Turret.aimWithOdometry()
+            // Create and start the triple fusion aim command
+            aimCommand = TripleFusionAim(
+                goalX = goalX,
+                goalY = goalY,
+                poseX = { PedroComponent.follower.pose.x },
+                poseY = { PedroComponent.follower.pose.y },
+                poseHeading = { PedroComponent.follower.pose.heading }
+            )
+            aimCommand?.let {
+                Turret.registerCommand(it)
+                CommandManager.scheduleCommand(it)
+            }
             gamepad2.rumble(100)
+        } whenBecomesFalse {
+            // Stop aiming when released
+            Turret.stop()
+            aimCommand = null
+        }
+
+        // Hold triangle for odometry-only aim (backup)
+        Gamepads.gamepad2.triangle whenBecomesTrue {
+            Turret.aimWithOdometry()
+            gamepad2.rumble(50)
         } whenBecomesFalse {
             Turret.stop()
         }
@@ -212,7 +237,7 @@ open class TeleOpBase(
         val dxyp = hypot(dxp, dyp)
 
         // Standard telemetry
-        telemetry.addData("Loop Time (ms)", loopTime)
+        telemetry.addData("Loop Time (ms)", "%.1f".format(loopTime))
         telemetry.addData("x (inch)", "%.1f".format(x))
         telemetry.addData("y (inch)", "%.1f".format(y))
         telemetry.addData("h (deg)", "%.1f".format(Math.toDegrees(h.inRad)))
